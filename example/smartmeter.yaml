@@ -1,0 +1,368 @@
+# =============================================================================
+# DDS238-4W / DTS238-7W WISEN - module dxs238xw v2.0.0
+#
+# Toutes les clés d'entités sont OPTIONNELLES : celles que tu n'écris pas ne
+# sont pas créées, et leur code n'est même pas compilé (contrairement à la v1
+# qui forçait AUTO_LOAD des 6 domaines).
+#
+# Ce fichier les déclare TOUTES (57) à titre de référence.
+# Sur un DDS238-4W monophasé, supprime les blocs marqués [TRIPHASÉ].
+# =============================================================================
+
+esphome:
+  name: smartmeter
+  friendly_name: SmartMeter
+
+esp8266:
+  board: esp01_1m
+  restore_from_flash: true      # requis : prix kWh, index départ, délai, achat
+
+# L'UART occupe les broches natives -> logger série obligatoirement désactivé
+logger:
+  baud_rate: 0
+  level: INFO
+
+api:
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source:
+      type: local
+      path: components          # dossier contenant components/dxs238xw/
+    components: [dxs238xw]
+
+  # Variante GitHub :
+  # - source: github://TON_USER/TON_REPO@main
+  #   components: [dxs238xw]
+
+# =============================================================================
+# UART - 9600 8N1 imposé par le compteur.
+# Toute autre valeur est refusée à la validation (FINAL_VALIDATE_SCHEMA),
+# avant même la compilation.
+# =============================================================================
+uart:
+  id: uart_dxs238xw
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+  rx_buffer_size: 256
+
+# =============================================================================
+# HUB
+# =============================================================================
+dxs238xw:
+  id: smart_meter
+  uart_id: uart_dxs238xw
+
+  # ATTENTION : update_interval a changé de sens depuis la v1.
+  # Ce n'est PLUS le tick de la machine à états (qui tourne dans loop()),
+  # c'est la cadence de la trame de mesure. L'ancien `update_interval: 5ms`
+  # n'a plus lieu d'être.
+  update_interval: 3s
+
+  meter_state_interval: 500ms     # cadence trame 0x00 (état/relais/délai)
+  limit_purchase_interval: 500ms  # cadence trame 0x02 (limites/achat)
+  transaction_gap: 500ms          # délai mini entre 2 transactions (20-2000 ms)
+  error_threshold: 5              # échecs consécutifs avant status_set_error
+
+  # Que faire à l'échéance du délai ? Le firmware interne du compteur pilote
+  # DÉJÀ le relais à cet instant.
+  #   none      (défaut) ESPHome observe, ne commande rien.
+  #   disarm    désarme le délai après échéance, sans toucher au relais.
+  #   force_off force le relais à OFF (comportement rodgon81) -> déconseillé :
+  #             si ton compteur rallume de lui-même en fin de délai, ESPHome
+  #             se bat contre lui et le recoupe aussitôt.
+  delay_end_action: none
+
+# =============================================================================
+# SENSOR (32)
+# =============================================================================
+sensor:
+  - platform: dxs238xw
+
+    # ---------------- courants -----------------------------------------------
+    # Signe corrigé : négatif = export (solaire). En v1 : -0,5 A -> 1000,5 A.
+    current_phase_1:
+      name: "Current"
+      id: current_phase_1_s
+    current_phase_2:                                          # [TRIPHASÉ]
+      name: "Current L2"
+      id: current_phase_2_s
+    current_phase_3:                                          # [TRIPHASÉ]
+      name: "Current L3"
+      id: current_phase_3_s
+
+    # ---------------- tensions -----------------------------------------------
+    voltage_phase_1:
+      name: "Voltage"
+      id: voltage_phase_1_s
+    voltage_phase_2:                                          # [TRIPHASÉ]
+      name: "Voltage L2"
+      id: voltage_phase_2_s
+    voltage_phase_3:                                          # [TRIPHASÉ]
+      name: "Voltage L3"
+      id: voltage_phase_3_s
+
+    # ---------------- puissance réactive (signe corrigé) ---------------------
+    reactive_power_total:
+      name: "Reactive Power Total"
+      id: reactive_power_total_s
+    reactive_power_phase_1:
+      name: "Reactive Power"
+      id: reactive_power_phase_1_s
+    reactive_power_phase_2:                                   # [TRIPHASÉ]
+      name: "Reactive Power L2"
+      id: reactive_power_phase_2_s
+    reactive_power_phase_3:                                   # [TRIPHASÉ]
+      name: "Reactive Power L3"
+      id: reactive_power_phase_3_s
+
+    # ---------------- puissance active (signe corrigé) -----------------------
+    # En v1 : -0,5 kW -> 100,5 kW.
+    active_power_total:
+      name: "Active Power Total"
+      id: active_power_total_s
+    active_power_phase_1:
+      name: "Active Power"
+      id: active_power_phase_1_s
+    active_power_phase_2:                                     # [TRIPHASÉ]
+      name: "Active Power L2"
+      id: active_power_phase_2_s
+    active_power_phase_3:                                     # [TRIPHASÉ]
+      name: "Active Power L3"
+      id: active_power_phase_3_s
+
+    # ---------------- facteur de puissance -----------------------------------
+    power_factor_total:
+      name: "Power Factor Total"
+      id: power_factor_total_s
+    power_factor_phase_1:
+      name: "Power Factor"
+      id: power_factor_phase_1_s
+    power_factor_phase_2:                                     # [TRIPHASÉ]
+      name: "Power Factor L2"
+      id: power_factor_phase_2_s
+    power_factor_phase_3:                                     # [TRIPHASÉ]
+      name: "Power Factor L3"
+      id: power_factor_phase_3_s
+
+    # ---------------- réseau -------------------------------------------------
+    frequency:
+      name: "Frequency"
+      id: frequency_s
+    phase_count:
+      name: "Phase Count"
+      id: phase_count_s
+
+    # ---------------- énergies (tableau de bord Énergie de HA) ---------------
+    import_active_energy:
+      name: "Import Active Energy"
+      id: import_active_energy_s
+    export_active_energy:
+      # Publié POSITIF et croissant (v1 et rodgon81 le publiaient négatif avec
+      # state_class: total_increasing -> HA voyait une RAZ à chaque pas).
+      # Pour retrouver l'ancien signe : filters: [multiply: -1]
+      name: "Export Active Energy"
+      id: export_active_energy_s
+    total_energy:
+      # state_class: total (et non total_increasing) : import - export décroît.
+      name: "Total Energy"
+      id: total_energy_s
+
+    # ---------------- achat d'énergie ----------------------------------------
+    energy_purchase_balance:
+      # Était calculé en v1 mais jamais publié.
+      name: "Energy Purchase Balance"
+      id: energy_purchase_balance_s
+    energy_purchase_price:
+      name: "Energy Purchase Price"
+      id: energy_purchase_price_s
+
+    # ---------------- valorisation -------------------------------------------
+    contract_total_energy:
+      name: "Contract Total Energy"     # starting_kwh + total_energy
+      id: contract_total_energy_s
+    total_energy_price:
+      name: "Total Energy Price"        # price_kwh x total_energy
+      id: total_energy_price_s
+    price_kwh:
+      name: "kWh Price Sensor"          # miroir du number, pour les templates
+      id: price_kwh_s
+
+    # ---------------- diagnostic liaison série (publié toutes les 1 s) -------
+    diag_success:
+      name: "Diag Transactions OK"
+      id: diag_success
+    diag_confirm_timeout:
+      name: "Diag Timeout Confirmation"
+      id: diag_confirm_timeout
+    diag_response_timeout:
+      name: "Diag Timeout Réponse"
+      id: diag_response_timeout
+    diag_crc_error:
+      name: "Diag Erreurs CRC"
+      id: diag_crc_error
+
+# =============================================================================
+# BINARY_SENSOR (8)
+# =============================================================================
+binary_sensor:
+  - platform: dxs238xw
+    meter_state:
+      name: "Relay State"
+      id: bin_meter_state
+    warning_off_by_over_voltage:
+      name: "Over Voltage Alert"
+      id: bin_over_voltage
+    warning_off_by_under_voltage:
+      name: "Under Voltage Alert"
+      id: bin_under_voltage
+    warning_off_by_over_current:
+      name: "Over Current Alert"
+      id: bin_over_current
+    warning_off_by_end_purchase:
+      name: "End Purchase Alert"
+      id: bin_end_purchase
+    warning_off_by_end_delay:
+      name: "End Delay Alert"
+      id: bin_end_delay
+    warning_off_by_user:
+      name: "Off by User Alert"
+      id: bin_off_by_user
+    warning_purchase_alarm:
+      name: "Balance Purchase Alert"
+      id: bin_purchase_alarm
+
+  # ---------------------------------------------------------------------------
+  # Bouton physique câblé sur une entrée de l'ESP -> bascule le relais.
+  # C'est l'usage de meter_state_toggle, qui n'existait pas en v1.
+  # ---------------------------------------------------------------------------
+  - platform: gpio
+    id: bin_physical_button
+    name: "Physical Button"
+    internal: true
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: true
+    filters:
+      - delayed_on: 30ms
+    on_press:
+      - dxs238xw.meter_state_toggle: smart_meter
+
+# =============================================================================
+# TEXT_SENSOR (4)
+# =============================================================================
+text_sensor:
+  - platform: dxs238xw
+    meter_state_detail:
+      # Format v1 conservé : "ACTIVE" / "INACTIVE - Over Voltage", etc.
+      name: "State - Detail"
+      id: txt_meter_state_detail
+    delay_value_remaining:
+      name: "Remaining Delay Time"
+      id: txt_delay_remaining
+    meter_id:
+      name: "Serial N°"
+      id: txt_meter_id
+    last_error:
+      name: "Last Error"                # nouveau : dernière erreur de com
+      id: txt_last_error
+
+# =============================================================================
+# NUMBER (9)
+# =============================================================================
+number:
+  - platform: dxs238xw
+    max_current_limit:
+      # float, pas de 40,5 A arrondi à 40 (rodgon81 utilise un uint8_t).
+      name: "Maximum Current"
+      id: num_max_current_limit
+    max_voltage_limit:
+      name: "Maximum Voltage"
+      id: num_max_voltage_limit
+    min_voltage_limit:
+      name: "Minimum Voltage"
+      id: num_min_voltage_limit
+    energy_purchase_value:
+      name: "Energy Purchase"
+      id: num_energy_purchase_value
+    energy_purchase_alarm:
+      name: "Energy Purchase Alarm"
+      id: num_energy_purchase_alarm
+    delay_value_set:
+      name: "Delay Time"
+      id: num_delay_value_set
+    starting_kwh:
+      name: "kWh Start"
+      id: num_starting_kwh
+    price_kwh:
+      name: "kWh Price"
+      id: num_price_kwh
+    transaction_gap:
+      # Jamais restauré : reprend transaction_gap du hub à chaque démarrage.
+      name: "Délai Entre Transactions"
+      id: num_transaction_gap
+
+# =============================================================================
+# SWITCH (3)
+# restore_mode: DISABLED par défaut - l'état vient du compteur, pas d'une
+# restauration. Évite qu'un redémarrage rejoue l'état sauvegardé et renvoie une
+# commande au relais (bug de rodgon81 qui utilise RESTORE_DEFAULT_OFF).
+# =============================================================================
+switch:
+  - platform: dxs238xw
+    meter_state:
+      name: "State SmartMeter"
+      id: meter_state
+    delay_state:
+      # Reflète "un délai est-il en cours ?" et non l'octet brut du compteur :
+      # celui-ci reste armé indéfiniment après l'échéance. L'interrupteur repasse
+      # donc à OFF dès que "Remaining Delay Time" atteint 0m.
+      name: "Activate Delay"
+      id: delay_state
+    energy_purchase_state:
+      name: "Activate Energy Purchase"
+      id: energy_purchase_state
+
+# =============================================================================
+# BUTTON (1)
+# =============================================================================
+button:
+  - platform: dxs238xw
+    reset_data:
+      # Purge l'achat d'énergie AVANT la remise à zéro (oublié en v1).
+      name: "Restart Consumption"
+      id: btn_reset_data
+
+# =============================================================================
+# LED d'état : allumée si le compteur ne répond plus (error_threshold atteint).
+# =============================================================================
+status_led:
+  pin:
+    number: GPIO2
+    inverted: true
+
+# =============================================================================
+# Exemples d'actions (à appeler depuis une automatisation HA ou un bouton)
+# =============================================================================
+script:
+  - id: exemples_actions
+    then:
+      - dxs238xw.meter_state_on: smart_meter
+      - dxs238xw.meter_state_off: smart_meter
+      - dxs238xw.meter_state_toggle: smart_meter
+
+      # Trame brute (debug). Séparateurs . : - , ou espace acceptés.
+      - dxs238xw.hex_message:
+          id: smart_meter
+          message: "48:06:02:01:00:51"
+          check_crc: true                 # false = CRC calculé automatiquement

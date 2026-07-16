@@ -1,0 +1,330 @@
+---
+description: "Instructions for setting up DXS238XW smart energy meters in ESPHome."
+title: "DXS238XW Smart Energy Meter"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+
+The `dxs238xw` component allows you to use Hiking/ENGELEC WiFi smart energy meters with ESPHome.
+These meters are sold under the WISEN brand and are normally driven by the WISEN phone app through
+the manufacturer's cloud. This component talks to the meter's measuring board directly over UART,
+so the meter keeps working with no cloud and no internet connection.
+
+Supported models:
+
+- **DDS238-4W** — single phase, DIN rail, 5(60) A
+- **DTS238-7W** — three phase, DIN rail
+
+Both meters ship with a WiFi module (usually a TYWE3S / ESP8285) that can be reflashed with ESPHome,
+or replaced with any ESP8266/ESP32 board. The measuring board speaks the HEKR protocol at 9600 baud,
+8 data bits, no parity, 1 stop bit, so you need an [UART bus](/components/uart) configured that way.
+
+> [!WARNING]
+> These meters are wired to mains voltage. Disconnect the installation before opening the meter,
+> and never work on it while it is energised.
+
+```yaml
+# Example configuration entry
+uart:
+  id: uart_bus
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+
+# Disable logging over the same pins
+logger:
+  baud_rate: 0
+
+dxs238xw:
+  id: meter
+
+sensor:
+  - platform: dxs238xw
+    active_power_total:
+      name: "Active Power"
+    voltage_phase_1:
+      name: "Voltage"
+    current_phase_1:
+      name: "Current"
+    total_energy:
+      name: "Total Energy"
+
+binary_sensor:
+  - platform: dxs238xw
+    meter_state:
+      name: "Meter State"
+
+switch:
+  - platform: dxs238xw
+    meter_state:
+      name: "Relay"
+```
+
+## Component/Hub
+
+### Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the
+  [UART Component](/components/uart) if you want to use multiple UART buses.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): How often the
+  measurement frame is requested from the meter. Defaults to `3s`.
+
+- **meter_state_interval** (*Optional*, [Time](/guides/configuration-types#time)): How often the
+  meter state frame (relay, warnings, delay) is requested. Defaults to `500ms`.
+
+- **limit_purchase_interval** (*Optional*, [Time](/guides/configuration-types#time)): How often
+  the limits and prepayment frame is requested. Defaults to `500ms`.
+
+- **transaction_gap** (*Optional*, [Time](/guides/configuration-types#time)): Minimum idle time
+  between two serial transactions, from `20ms` to `2000ms`. Defaults to `500ms`.
+
+- **error_threshold** (*Optional*, int): Number of consecutive failed transactions before the
+  component is marked as failed. Defaults to `5`.
+
+- **delay_end_action** (*Optional*, string): What ESPHome should do when the delay timer elapses.
+  Defaults to `none`. See [End of delay](#end-of-delay).
+
+## Sensor
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: dxs238xw
+    active_power_total:
+      name: "Active Power"
+    total_energy:
+      name: "Total Energy"
+```
+
+### Configuration variables
+
+- **current_phase_1**, **current_phase_2**, **current_phase_3** (*Optional*): Current on each phase,
+  in A. Negative while exporting. All options from [Sensor](/components/sensor).
+
+- **voltage_phase_1**, **voltage_phase_2**, **voltage_phase_3** (*Optional*): Voltage on each phase,
+  in V. All options from [Sensor](/components/sensor).
+
+- **active_power_total**, **active_power_phase_1**, **active_power_phase_2**,
+  **active_power_phase_3** (*Optional*): Active power, in kW. Negative while exporting.
+  All options from [Sensor](/components/sensor).
+
+- **reactive_power_total**, **reactive_power_phase_1**, **reactive_power_phase_2**,
+  **reactive_power_phase_3** (*Optional*): Reactive power, in kVAr. All options from
+  [Sensor](/components/sensor).
+
+- **power_factor_total**, **power_factor_phase_1**, **power_factor_phase_2**,
+  **power_factor_phase_3** (*Optional*): Power factor. All options from [Sensor](/components/sensor).
+
+- **frequency** (*Optional*): Mains frequency, in Hz. All options from [Sensor](/components/sensor).
+
+- **import_active_energy** (*Optional*): Energy imported from the grid, in kWh. All options from
+  [Sensor](/components/sensor).
+
+- **export_active_energy** (*Optional*): Energy exported to the grid, in kWh. Published as a
+  positive, increasing counter. All options from [Sensor](/components/sensor).
+
+- **total_energy** (*Optional*): Total energy, in kWh. The meter accumulates reverse energy into
+  this counter, so it equals `import + export` and only ever grows. All options from
+  [Sensor](/components/sensor).
+
+- **contract_total_energy** (*Optional*): `starting_kwh` plus `total_energy`, in kWh. Lets you line
+  the reading up with your utility meter. All options from [Sensor](/components/sensor).
+
+- **total_energy_price** (*Optional*): `price_kwh` multiplied by `total_energy`. All options from
+  [Sensor](/components/sensor).
+
+- **price_kwh** (*Optional*): Mirrors the configured price per kWh as a sensor. All options from
+  [Sensor](/components/sensor).
+
+- **energy_purchase_balance** (*Optional*): Remaining prepaid energy, in kWh. All options from
+  [Sensor](/components/sensor).
+
+- **energy_purchase_price** (*Optional*): Price of the current prepaid purchase. All options from
+  [Sensor](/components/sensor).
+
+- **phase_count** (*Optional*): Number of phases reported by the meter. All options from
+  [Sensor](/components/sensor).
+
+- **diag_success**, **diag_confirm_timeout**, **diag_response_timeout**, **diag_crc_error**
+  (*Optional*): Serial link counters, useful to diagnose a noisy or miswired connection.
+  All options from [Sensor](/components/sensor).
+
+## Binary Sensor
+
+```yaml
+# Example configuration entry
+binary_sensor:
+  - platform: dxs238xw
+    meter_state:
+      name: "Meter State"
+    warning_off_by_over_voltage:
+      name: "Off by Over Voltage"
+```
+
+### Configuration variables
+
+- **meter_state** (*Optional*): Whether the internal relay is closed. All options from
+  [Binary Sensor](/components/binary_sensor).
+
+- **warning_off_by_over_voltage**, **warning_off_by_under_voltage**, **warning_off_by_over_current**,
+  **warning_off_by_end_purchase**, **warning_off_by_end_delay**, **warning_off_by_user**
+  (*Optional*): Why the meter switched the load off. These stay set until the meter switches back
+  on. All options from [Binary Sensor](/components/binary_sensor).
+
+- **warning_purchase_alarm** (*Optional*): The prepaid balance has dropped below the alarm
+  threshold. All options from [Binary Sensor](/components/binary_sensor).
+
+## Text Sensor
+
+### Configuration variables
+
+- **meter_state_detail** (*Optional*): Human readable meter state, for example `ACTIVE` or
+  `INACTIVE - Over Voltage`. All options from [Text Sensor](/components/text_sensor).
+
+- **delay_value_remaining** (*Optional*): Time left on the delay timer, for example `1h 30m`.
+  All options from [Text Sensor](/components/text_sensor).
+
+- **meter_id** (*Optional*): Serial number reported by the meter. All options from
+  [Text Sensor](/components/text_sensor).
+
+- **last_error** (*Optional*): Last communication error. All options from
+  [Text Sensor](/components/text_sensor).
+
+## Number
+
+```yaml
+# Example configuration entry
+number:
+  - platform: dxs238xw
+    max_current_limit:
+      name: "Max Current Limit"
+```
+
+### Configuration variables
+
+- **max_current_limit** (*Optional*): Overload protection threshold, 1 A to 80 A. The meter ships
+  with 65 A. All options from [Number](/components/number).
+
+- **max_voltage_limit** (*Optional*): Over-voltage protection threshold, 80 V to 300 V. The meter
+  ships with 270 V. Must stay above `min_voltage_limit`. All options from [Number](/components/number).
+
+- **min_voltage_limit** (*Optional*): Under-voltage protection threshold, 80 V to 300 V. The meter
+  ships with 170 V. Must stay below `max_voltage_limit`. All options from [Number](/components/number).
+
+- **delay_value_set** (*Optional*): Delay timer duration, 1 minute to 1440 minutes (24 hours).
+  All options from [Number](/components/number).
+
+- **energy_purchase_value** (*Optional*): Amount of energy to load into the prepaid balance, in kWh.
+  All options from [Number](/components/number).
+
+- **energy_purchase_alarm** (*Optional*): Prepaid balance below which the alarm is raised, in kWh.
+  All options from [Number](/components/number).
+
+- **starting_kwh** (*Optional*): Offset added to `total_energy` to produce `contract_total_energy`.
+  All options from [Number](/components/number).
+
+- **price_kwh** (*Optional*): Price per kWh, used for `total_energy_price`. All options from
+  [Number](/components/number).
+
+- **transaction_gap** (*Optional*): Runtime override of the hub's `transaction_gap`. Not restored on
+  boot. All options from [Number](/components/number).
+
+## Switch
+
+```yaml
+# Example configuration entry
+switch:
+  - platform: dxs238xw
+    meter_state:
+      name: "Relay"
+```
+
+### Configuration variables
+
+- **meter_state** (*Optional*): Opens and closes the meter's internal relay. All options from
+  [Switch](/components/switch).
+
+- **delay_state** (*Optional*): Arms and disarms the delay timer. All options from
+  [Switch](/components/switch).
+
+- **energy_purchase_state** (*Optional*): Enables prepayment mode. All options from
+  [Switch](/components/switch).
+
+> [!NOTE]
+> These switches mirror the meter's own state, so their `restore_mode` defaults to `DISABLED`.
+> Restoring a saved state on boot would command the relay and could override, for example, a
+> switch-off made with the meter's physical button while the ESP was powered down.
+
+## Button
+
+### Configuration variables
+
+- **reset_data** (*Optional*): Resets the meter's energy counters. All options from
+  [Button](/components/button).
+
+## End of delay
+
+The delay timer is the meter's own *time delay control*: after the configured number of minutes,
+the meter's firmware switches the relay itself. It is a generic timer and may switch the relay
+**on** as well as off.
+
+Because the meter drives the relay on its own, ESPHome does not send any command when the timer
+elapses. This is controlled by `delay_end_action`:
+
+- `none` (default): ESPHome only observes. The meter decides.
+- `disarm`: ESPHome disarms the timer once it elapses, without touching the relay.
+- `force_off`: ESPHome forces the relay off. Discouraged, since it fights the meter's own firmware
+  if that firmware just switched the relay on.
+
+> [!NOTE]
+> The meter does not clear its armed flag once the timer elapses, so the `delay_state` switch
+> reports whether a delay is *running* rather than the raw flag. It returns to off when
+> `delay_value_remaining` reaches `0m`.
+
+## Scheduling
+
+The meter has no internal real time clock, so the WISEN app's scheduling feature relies on the
+manufacturer's cloud and is not available locally. Use Home Assistant automations or ESPHome's
+[time](/components/time) component together with the `meter_state` switch instead. The delay timer
+described above is relative and does work locally.
+
+## Actions
+
+### `dxs238xw.meter_state_on`, `dxs238xw.meter_state_off`, `dxs238xw.meter_state_toggle`
+
+Switch the meter's relay on, off, or toggle it.
+
+```yaml
+on_...:
+  - dxs238xw.meter_state_off: meter
+```
+
+### `dxs238xw.hex_message`
+
+Send a raw HEKR frame to the meter. Intended for debugging and for protocol exploration.
+
+```yaml
+on_...:
+  - dxs238xw.hex_message:
+      id: meter
+      message: "48:06:02:01:00:51"
+      check_crc: true
+```
+
+Configuration variables:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the `dxs238xw` hub.
+- **message** (**Required**, string, [templatable](/guides/automations#config-templatable)):
+  The frame, as hexadecimal bytes.
+- **check_crc** (*Optional*, boolean): Verify the checksum supplied in `message` instead of
+  computing it. Defaults to `false`.
+
+## See Also
+
+- [UART Bus](/components/uart)
+- [Sensor Filters](/components/sensor#sensor-filters)
+- <APIRef text="dxs238xw.h" path="dxs238xw/dxs238xw.h" />

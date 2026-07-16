@@ -1,0 +1,146 @@
+dxs238xw:
+  id: dxs238xw_meter
+  uart_id: uart_bus
+
+sensor:
+  - platform: dxs238xw
+    current_phase_1:
+      name: Current Phase 1
+    current_phase_2:
+      name: Current Phase 2
+    current_phase_3:
+      name: Current Phase 3
+    voltage_phase_1:
+      name: Voltage Phase 1
+    voltage_phase_2:
+      name: Voltage Phase 2
+    voltage_phase_3:
+      name: Voltage Phase 3
+    reactive_power_total:
+      name: Reactive Power Total
+    reactive_power_phase_1:
+      name: Reactive Power Phase 1
+    reactive_power_phase_2:
+      name: Reactive Power Phase 2
+    reactive_power_phase_3:
+      name: Reactive Power Phase 3
+    active_power_total:
+      name: Active Power Total
+    active_power_phase_1:
+      name: Active Power Phase 1
+    active_power_phase_2:
+      name: Active Power Phase 2
+    active_power_phase_3:
+      name: Active Power Phase 3
+    power_factor_total:
+      name: Power Factor Total
+    power_factor_phase_1:
+      name: Power Factor Phase 1
+    power_factor_phase_2:
+      name: Power Factor Phase 2
+    power_factor_phase_3:
+      name: Power Factor Phase 3
+    frequency:
+      name: Frequency
+    import_active_energy:
+      name: Import Active Energy
+    export_active_energy:
+      name: Export Active Energy
+    total_energy:
+      name: Total Energy
+    energy_purchase_balance:
+      name: Energy Purchase Balance
+    phase_count:
+      name: Phase Count
+    energy_purchase_price:
+      name: Energy Purchase Price
+    total_energy_price:
+      name: Total Energy Price
+    contract_total_energy:
+      name: Contract Total Energy
+    price_kwh:
+      name: Price kWh
+    diag_success:
+      name: Diag Success
+    diag_confirm_timeout:
+      name: Diag Confirm Timeout
+    diag_response_timeout:
+      name: Diag Response Timeout
+    diag_crc_error:
+      name: Diag CRC Error
+
+binary_sensor:
+  - platform: dxs238xw
+    meter_state:
+      name: Meter State
+    warning_off_by_over_voltage:
+      name: Off by Over Voltage
+    warning_off_by_under_voltage:
+      name: Off by Under Voltage
+    warning_off_by_over_current:
+      name: Off by Over Current
+    warning_off_by_end_purchase:
+      name: Off by End Purchase
+    warning_off_by_end_delay:
+      name: Off by End Delay
+    warning_off_by_user:
+      name: Off by User
+    warning_purchase_alarm:
+      name: Purchase Alarm
+
+text_sensor:
+  - platform: dxs238xw
+    meter_state_detail:
+      name: Meter State Detail
+    delay_value_remaining:
+      name: Delay Value Remaining
+    meter_id:
+      name: Meter ID
+    last_error:
+      name: Last Error
+
+number:
+  - platform: dxs238xw
+    max_current_limit:
+      name: Max Current Limit
+    max_voltage_limit:
+      name: Max Voltage Limit
+    min_voltage_limit:
+      name: Min Voltage Limit
+    energy_purchase_value:
+      name: Energy Purchase Value
+    energy_purchase_alarm:
+      name: Energy Purchase Alarm
+    delay_value_set:
+      name: Delay Value Set
+    starting_kwh:
+      name: Starting kWh
+    price_kwh:
+      name: Price kWh
+    transaction_gap:
+      name: Transaction Gap
+
+switch:
+  - platform: dxs238xw
+    meter_state:
+      name: Meter State Switch
+    delay_state:
+      name: Delay State
+    energy_purchase_state:
+      name: Energy Purchase State
+
+button:
+  - platform: dxs238xw
+    reset_data:
+      name: Reset Data
+
+esphome:
+  on_boot:
+    then:
+      - dxs238xw.meter_state_on: dxs238xw_meter
+      - dxs238xw.meter_state_off: dxs238xw_meter
+      - dxs238xw.meter_state_toggle: dxs238xw_meter
+      - dxs238xw.hex_message:
+          id: dxs238xw_meter
+          message: "48:06:02:01:00:51"
+          check_crc: true
