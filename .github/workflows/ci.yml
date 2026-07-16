@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: esphome config (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: esp8266
+            board: |
+              esp8266:
+                board: esp01_1m
+          - name: esp32-arduino
+            board: |
+              esp32:
+                board: esp32dev
+                framework:
+                  type: arduino
+          - name: esp32-idf
+            board: |
+              esp32:
+                board: esp32dev
+                framework:
+                  type: esp-idf
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ESPHome
+        run: pip install esphome
+
+      - name: Build the test configuration
+        run: |
+          cat > ci-test.yaml <<'EOF'
+          esphome:
+            name: ci-test
+          ${{ matrix.board }}
+          external_components:
+            - source:
+                type: local
+                path: esphome/components
+              components: [dxs238xw]
+          logger:
+            baud_rate: 0
+          uart:
+            id: uart_bus
+            tx_pin: GPIO1
+            rx_pin: GPIO3
+            baud_rate: 9600
+          packages:
+            base: !include tests/components/dxs238xw/common.yaml
+          EOF
+          cat ci-test.yaml
+
+      - name: Validate
+        run: esphome config ci-test.yaml
+
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check esphome/components/dxs238xw/
+      - run: ruff format --check esphome/components/dxs238xw/
+      
