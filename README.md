@@ -1,3 +1,6 @@
+<img width="547" height="471" alt="image" src="https://github.com/user-attachments/assets/84b0591b-50be-4699-8277-041738c57550" />
+
+
 # dxs238xw — ESPHome component for DDS238-4W / DTS238-7W energy meters
 
 [![CI](https://github.com/kaboom748/dxs238xw/actions/workflows/ci.yml/badge.svg)](https://github.com/kaboom748/dxs238xw/actions/workflows/ci.yml)
