@@ -1,5 +1,5 @@
 <img width="547" height="471" alt="image" src="https://github.com/user-attachments/assets/84b0591b-50be-4699-8277-041738c57550" />
-
+YOU MUST REFLASH THE ESP-01 INSIDE THE METER... (NOT COVERED IN THIS GITHUB)
 
 # dxs238xw — ESPHome component for DDS238-4W / DTS238-7W energy meters
 
